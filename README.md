@@ -302,4 +302,4 @@ Types are included with the package.
 
 ## License
 
-MIT © 2025 JustKordy
+BUSL © 2025 JustKordy
