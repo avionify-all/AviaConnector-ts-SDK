@@ -111,6 +111,12 @@ export interface SimulatorStatus {
   simulator_name?: string; // simulator name
 }
 
+export interface ErrorType{
+  message?: string;
+  function_name?: string;
+  possible_issue?: string;
+}
+
 /**
  * Pong response data from ping request
  */

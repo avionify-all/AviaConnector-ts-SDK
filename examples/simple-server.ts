@@ -1,6 +1,9 @@
 import { AviaConnectorServer } from "../src/server/AviaConnectorServer";
 
 // Create a simple server that listens for aircraft data
+let pingInterval: NodeJS.Timeout | undefined;
+let dataInterval: NodeJS.Timeout | undefined;
+
 const server = new AviaConnectorServer({
   port: 8765,
   host: "0.0.0.0",
@@ -13,13 +16,17 @@ const server = new AviaConnectorServer({
   onConnection: () => {
     console.log(`✅ AviaConnector connected!`);
     
+    // Clear any existing intervals just in case
+    if (pingInterval) clearInterval(pingInterval);
+    if (dataInterval) clearInterval(dataInterval);
+
     // Send a ping to detect simulator type
-    setInterval(() => {
+    pingInterval = setInterval(() => {
       server.ping();
     }, 15000);
     
     // Request aircraft data every second
-    setInterval(() => {
+    dataInterval = setInterval(() => {
       
         server.requestSimulatorStatus();
         if(server.isSimulatorConnected())
@@ -33,6 +40,10 @@ const server = new AviaConnectorServer({
   
   onDisconnect: () => {
     console.log(`❌ AviaConnector disconnected`);
+    if (pingInterval) clearInterval(pingInterval);
+    if (dataInterval) clearInterval(dataInterval);
+    pingInterval = undefined;
+    dataInterval = undefined;
   },
   
   onSimulatorStatus: (status) => {
@@ -120,7 +131,7 @@ console.log(
   },
   
   onError: (error) => {
-    console.error(`❌ Error: ${error.message}`);
+    console.error(`❌ Error: ${error.message} (in ${error.function_name}) Possible issue: ${error.possible_issue}`);
   }
 });
 

@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
-import type { AircraftData, MessageEnvelope, SimulatorStatus, PongResponse } from "../types";
-import { StatusCode, type StatusMessage, isSimulatorStatusCode, getStatusCodeDescription } from "../statusCodes";
+import type { AircraftData, MessageEnvelope, SimulatorStatus, PongResponse, ErrorType } from "../types";
+import {type StatusMessage} from "../statusCodes";
 
 export interface AviaConnectorServerOptions {
   port: number;
@@ -45,7 +45,7 @@ export interface AviaConnectorServerOptions {
   /**
    * Callback for errors
    */
-  onError?: (error: Error) => void;
+  onError?: (error: ErrorType) => void;
 }
 
 /**
@@ -67,7 +67,7 @@ export class AviaConnectorServer {
   private readonly onSimulatorStatus?: (status: SimulatorStatus) => void;
   private readonly onStatusMessage?: (statusMessage: StatusMessage) => void;
   private readonly onPong?: (response: PongResponse) => void;
-  private readonly onError?: (error: Error) => void;
+  private readonly onError?: (error: ErrorType) => void;
 
   constructor(opts: AviaConnectorServerOptions) {
     this.onListening = opts.onListening;
@@ -104,7 +104,7 @@ export class AviaConnectorServer {
           const message = this.parseMessage(raw);
           this.handleMessage(message);
         } catch (err) {
-          this.onError?.(err instanceof Error ? err : new Error(String(err)));
+          this.onError?.({message: (err as Error).message, function_name: 'SDK : on message', possible_issue: 'parsing issue'});
         }
       });
 
@@ -116,7 +116,7 @@ export class AviaConnectorServer {
       });
 
       ws.on("error", (err) => {
-        this.onError?.(err);
+        this.onError?.(err)
       });
     });
 
@@ -176,9 +176,6 @@ export class AviaConnectorServer {
     else if (type === "Status") {
       if (!data) return;
       
-  
-      const code = (data as any);
-      
       this.simulatorStatus = {
         last_error: (data as any).last_error ?? this.simulatorStatus.last_error,
         simulator_connected: (data as any).simulator_connected ?? this.simulatorStatus.simulator_connected,
@@ -199,8 +196,9 @@ export class AviaConnectorServer {
     
     // Handle errors
     else if (type === "Error" || type === "error") {
-      const errorMsg = typeof data === "string" ? data : (data as any)?.message ?? "Unknown error";
-      this.onError?.(new Error(errorMsg));
+      if (!data) return;
+      this.onError?.(data as ErrorType);
+      
     }
   }
 
@@ -217,7 +215,7 @@ export class AviaConnectorServer {
       this.client.send(message);
       return true;
     } catch (err) {
-      this.onError?.(err instanceof Error ? err : new Error(String(err)));
+      this.onError?.({message: (err as Error).message, function_name: 'SDK : send', possible_issue: 'sending issue'});
       return false;
     }
   }
@@ -270,13 +268,6 @@ export class AviaConnectorServer {
 
   getSimulatorName(): string | undefined { 
     return this.simulatorStatus.simulator_name;
-  }
-
-  /**
-   * Check if client is connected
-   */
-  isClientConnected(): boolean {
-    return this.client !== undefined && this.client.readyState === WebSocket.OPEN;
   }
 
   /**
