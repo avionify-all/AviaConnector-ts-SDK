@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { AircraftData, MessageEnvelope, SimulatorStatus, PongResponse } from "../types";
+import { StatusCode, type StatusMessage, isSimulatorStatusCode, getStatusCodeDescription } from "../statusCodes";
 
 export interface AviaConnectorServerOptions {
   port: number;
@@ -32,6 +33,11 @@ export interface AviaConnectorServerOptions {
   onSimulatorStatus?: (status: SimulatorStatus) => void;
   
   /**
+   * Callback for any status message received from AviaConnector
+   */
+  onStatusMessage?: (statusMessage: StatusMessage) => void;
+  
+  /**
    * Callback when pong response is received
    */
   onPong?: (response: PongResponse) => void;
@@ -51,7 +57,7 @@ export interface AviaConnectorServerOptions {
 export class AviaConnectorServer {
   private wss: WebSocketServer;
   private client?: WebSocket;
-  private simulatorStatus: SimulatorStatus = { connected: false };
+  private simulatorStatus: SimulatorStatus = { last_error: 0, simulator_connected: false, simulator_loaded: false, simulator_name: undefined };
   
   // Callbacks
   private readonly onListening?: (url: string) => void;
@@ -59,6 +65,7 @@ export class AviaConnectorServer {
   private readonly onDisconnect?: () => void;
   private readonly onAircraftData?: (data: AircraftData) => void;
   private readonly onSimulatorStatus?: (status: SimulatorStatus) => void;
+  private readonly onStatusMessage?: (statusMessage: StatusMessage) => void;
   private readonly onPong?: (response: PongResponse) => void;
   private readonly onError?: (error: Error) => void;
 
@@ -68,6 +75,7 @@ export class AviaConnectorServer {
     this.onDisconnect = opts.onDisconnect;
     this.onAircraftData = opts.onAircraftData;
     this.onSimulatorStatus = opts.onSimulatorStatus;
+    this.onStatusMessage = opts.onStatusMessage;
     this.onPong = opts.onPong;
     this.onError = opts.onError;
 
@@ -168,24 +176,18 @@ export class AviaConnectorServer {
     else if (type === "Status") {
       if (!data) return;
       
-      // Extract status code and message (handle nested format)
-      const statusData = (data as any).data ?? data;
-      const code = statusData.code;
-      const message = statusData.message;
+  
+      const code = (data as any);
       
-      // Update simulator status
-      if (code === "600") {
-        // Simulator connected
-        this.simulatorStatus = {
-          connected: true,
-          simulator: this.detectSimulator(message)
-        };
-        this.onSimulatorStatus?.(this.simulatorStatus);
-      } else if (code === "601") {
-        // Simulator disconnected
-        this.simulatorStatus = { connected: false };
-        this.onSimulatorStatus?.(this.simulatorStatus);
-      }
+      this.simulatorStatus = {
+        last_error: (data as any).last_error ?? this.simulatorStatus.last_error,
+        simulator_connected: (data as any).simulator_connected ?? this.simulatorStatus.simulator_connected,
+        simulator_loaded: (data as any).simulator_loaded ?? this.simulatorStatus.simulator_loaded,
+        simulator_name: (data as any).simulator_name ?? this.simulatorStatus.simulator_name,
+      };
+      
+      this.onSimulatorStatus?.({ ...this.simulatorStatus });
+      
     }
     
     // Handle pong response
@@ -200,20 +202,6 @@ export class AviaConnectorServer {
       const errorMsg = typeof data === "string" ? data : (data as any)?.message ?? "Unknown error";
       this.onError?.(new Error(errorMsg));
     }
-  }
-
-  /**
-   * Detect simulator type from status message
-   */
-  private detectSimulator(message?: string): "MSFS" | "P3D" | "X-Plane" | "Unknown" {
-    if (!message) return "Unknown";
-    
-    const msg = message.toLowerCase();
-    if (msg.includes("msfs")) return "MSFS";
-    if (msg.includes("p3d") || msg.includes("prepar3d")) return "P3D";
-    if (msg.includes("x-plane") || msg.includes("xplane")) return "X-Plane";
-    
-    return "Unknown";
   }
 
   /**
@@ -240,10 +228,17 @@ export class AviaConnectorServer {
   requestAircraftData(): boolean {
     return this.send({
       type: "request",
-      data: { type: "AircraftData" },
-      ts: Date.now()
+      data: { type: "AircraftData" }
     });
   }
+
+  requestSimulatorStatus(): boolean {
+    return this.send({
+      type: "Status",
+      data: {}
+    });
+  }
+
 
   /**
    * Send a ping request to AviaConnector
@@ -266,7 +261,15 @@ export class AviaConnectorServer {
    * Check if simulator is connected
    */
   isSimulatorConnected(): boolean {
-    return this.simulatorStatus.connected;
+    return this.simulatorStatus.simulator_connected === true;
+  }
+
+  isSimulatorLoaded(): boolean { 
+    return this.simulatorStatus.simulator_loaded === true;
+  }
+
+  getSimulatorName(): string | undefined { 
+    return this.simulatorStatus.simulator_name;
   }
 
   /**
