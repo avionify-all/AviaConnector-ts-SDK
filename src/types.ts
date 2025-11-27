@@ -71,7 +71,7 @@ export interface AircraftData {
   //
   // Gear
   //
-  GEAR_HANDLE_POSITION?: number;         // 0 = down, 1 = up
+  GEAR_HANDLE_POSITION?: number;         // 1 = down, 0 = up
   GEAR_CENTER_POSITION?: number;         // percent
   GEAR_LEFT_POSITION?: number;           // percent
   GEAR_RIGHT_POSITION?: number;          // percent

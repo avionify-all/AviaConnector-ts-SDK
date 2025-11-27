@@ -107,7 +107,7 @@ console.log(
 
 // ---- Ground / Gear ----
 console.log(`  On Ground: ${data.SIM_ON_GROUND ? 'Yes' : 'No'}`);
-console.log(`  Gear Handle: ${data.GEAR_HANDLE_POSITION === 0 ? 'Down' : data.GEAR_HANDLE_POSITION === 1 ? 'Up' : 'Transitioning'}`);
+console.log(`  Gear Handle: ${data.GEAR_HANDLE_POSITION === 0 ? 'UP' : data.GEAR_HANDLE_POSITION === 1 ? 'Down' : 'Transitioning'}`);
 
 console.log(`  Gear Pos Center: ${data.GEAR_CENTER_POSITION}`);
 console.log(`  Gear Pos Left: ${data.GEAR_LEFT_POSITION}`);
